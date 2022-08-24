@@ -2,18 +2,24 @@ use std::{fs, marker::PhantomData, os::unix::prelude::AsRawFd};
 
 use mmap::{MapOption, MemoryMap};
 
+/// This is the main struct of the library.
+/// It owns a memory map and provides simplified access to this memory region
+/// This memory region can support any type of data, as long as there is no dynamic memory regions within it (e.g. Box)
 pub struct EasyMap {
     map: MemoryMap,
     capacity: usize,
     _file: Option<fs::File>,
 }
 
+/// An iterator abstraction over the memory region.
+/// It can be used to quickly iterate over the memory region
 pub struct EasyMapIter<'a, T> {
     map: &'a EasyMap,
     index: usize,
     phantom: PhantomData<T>,
 }
 
+/// The builder class, that provides an easy interface to create the memory map with its respective requirements
 pub struct EasyMapBuilder<T> {
     file: Option<fs::File>,
     capacity: usize,
@@ -102,6 +108,7 @@ impl<T> EasyMapBuilder<T> {
         }
     }
 
+    /// Builds the memory map with the given requirements
     pub fn build(mut self) -> EasyMap {
         if self.file.is_some() {
             let file = self.file.unwrap();
@@ -122,21 +129,25 @@ impl<T> EasyMapBuilder<T> {
         )
     }
 
+    /// Passes the ownership of the file to the memory map
     pub fn file(mut self, file: fs::File) -> EasyMapBuilder<T> {
         self.file = Some(file);
         self
     }
 
+    /// Sets the capacity that the file must have
     pub fn capacity(mut self, capacity: usize) -> EasyMapBuilder<T> {
         self.capacity = capacity;
         self
     }
 
+    /// Batch sets the options that the file must have
     pub fn options(mut self, options: &[MapOption]) -> EasyMapBuilder<T> {
         self.options = options.to_vec();
         self
     }
 
+    /// Adds an option to the memory region
     pub fn add_option(mut self, option: MapOption) -> EasyMapBuilder<T> {
         self.options.push(option);
         self
