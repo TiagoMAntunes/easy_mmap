@@ -228,4 +228,61 @@ mod tests {
         map.put::<u32>(0, 1);
         assert_eq!(map.get::<u32>(0), 1);
     }
+
+    #[test]
+    fn test_large_size() {
+        let map = &mut EasyMapBuilder::<u64>::new()
+            .capacity(65535)
+            .options(&[MapOption::MapReadable, MapOption::MapWritable])
+            .build();
+
+        // Populate map
+        for i in 0..65535 {
+            map.put::<u64>(i, i as u64);
+        }
+
+        // Check if map is populated
+        for i in 0..65535 {
+            assert_eq!(map.get::<u64>(i), i as u64);
+        }
+    }
+
+    #[test]
+    fn test_struct() {
+        struct TestStruct {
+            v1: i64,
+            v2: bool,
+        }
+
+        let length = 100000;
+
+        let file = fs::OpenOptions::new()
+            .create(true)
+            .read(true)
+            .write(true)
+            .open(format!("/tmp/map{}", rand::random::<u64>()))
+            .unwrap();
+
+        let map = &mut EasyMapBuilder::<TestStruct>::new()
+            .capacity(length)
+            .options(&[MapOption::MapReadable, MapOption::MapWritable])
+            .file(file)
+            .build();
+
+        for i in 0..length {
+            map.put::<TestStruct>(
+                i,
+                TestStruct {
+                    v1: i as i64,
+                    v2: i % 2 == 0,
+                },
+            );
+        }
+
+        for i in 0..length {
+            let s = map.get::<TestStruct>(i);
+            assert_eq!(s.v1, i as i64);
+            assert_eq!(s.v2, i % 2 == 0);
+        }
+    }
 }
