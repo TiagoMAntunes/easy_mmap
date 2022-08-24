@@ -140,24 +140,25 @@ impl<T> EasyMmapBuilder<T> {
     }
 
     /// Passes the ownership of the file to the memory map.
+    /// Also sets the file to have enough size.
     pub fn file(mut self, file: fs::File) -> EasyMmapBuilder<T> {
         self.file = Some(file);
         self
     }
 
-    /// Sets the capacity that the file must have.
+    /// Sets the capacity that the mapped region must have.
     pub fn capacity(mut self, capacity: usize) -> EasyMmapBuilder<T> {
         self.capacity = capacity;
         self
     }
 
-    /// Batch sets the options that the file must have.
+    /// Batch sets the options that the mapped region must have.
     pub fn options(mut self, options: &[MapOption]) -> EasyMmapBuilder<T> {
         self.options = options.to_vec();
         self
     }
 
-    /// Adds an option to the memory region.
+    /// Adds an individual option.
     pub fn add_option(mut self, option: MapOption) -> EasyMmapBuilder<T> {
         self.options.push(option);
         self
