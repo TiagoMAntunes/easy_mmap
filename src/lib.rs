@@ -3,8 +3,8 @@ use std::{fs, marker::PhantomData, os::unix::prelude::AsRawFd};
 use mmap::{MapOption, MemoryMap};
 
 /// This is the main struct of the library.
-/// It owns a memory map and provides simplified access to this memory region
-/// This memory region can support any type of data, as long as there is no dynamic memory regions within it (e.g. Box)
+/// It owns a memory map and provides simplified access to this memory region.
+/// This memory region can support any type of data, as long as there is no dynamic memory regions within it (e.g. Box).
 pub struct EasyMmap<T> {
     map: MemoryMap,
     capacity: usize,
@@ -13,13 +13,13 @@ pub struct EasyMmap<T> {
 }
 
 /// An iterator abstraction over the memory region.
-/// It can be used to quickly iterate over the memory region
+/// It can be used to quickly iterate over the memory region.
 pub struct EasyMmapIter<'a, T> {
     map: &'a EasyMmap<T>,
     index: usize,
 }
 
-/// The builder class, that provides an easy interface to create the memory map with its respective requirements
+/// The builder class, that provides an easy interface to create the memory map with its respective requirements.
 pub struct EasyMmapBuilder<T> {
     file: Option<fs::File>,
     capacity: usize,
@@ -39,7 +39,7 @@ impl<'a, T> EasyMmap<T> {
     }
 
     /// Inserts a value at index `index` in the EasyMmap according to the type of `T`.
-    fn put(&mut self, index: usize, value: T) {
+    pub fn put(&mut self, index: usize, value: T) {
         if index >= self.len() {
             panic!(
                 "Index {} is out of bounds for type {}",
@@ -83,10 +83,9 @@ impl<'a, T> EasyMmap<T> {
         }
     }
 
-    /// Due to the nature of a Mmap, memory cannot be consumed and will keep existing
-    /// Typical workloads will not want to be creating new memory maps, and will prefer to update the memory in place
-    /// We can then level an iterator over the memory region to simplify this process
-    /// This function will consume the iterator and update the referenced memory region with the new values
+    /// Due to the nature of a Mmap, memory cannot be consumed and will keep existing.
+    /// Typical workloads will also avoid creating new memory mapped regions, preferring in-place updates.
+    /// We can then level an iterator over the memory region to simplify this process.
     pub fn update_each(&mut self, f: impl Fn(usize, T) -> T) {
         for i in 0..self.len() {
             self.put(i, f(i, self.get(i)));
@@ -117,7 +116,7 @@ impl<T> EasyMmapBuilder<T> {
         }
     }
 
-    /// Builds the memory map with the given requirements
+    /// Builds the memory map with the given requirements.
     pub fn build(mut self) -> EasyMmap<T> {
         if self.file.is_some() {
             let file = self.file.unwrap();
@@ -140,25 +139,25 @@ impl<T> EasyMmapBuilder<T> {
         )
     }
 
-    /// Passes the ownership of the file to the memory map
+    /// Passes the ownership of the file to the memory map.
     pub fn file(mut self, file: fs::File) -> EasyMmapBuilder<T> {
         self.file = Some(file);
         self
     }
 
-    /// Sets the capacity that the file must have
+    /// Sets the capacity that the file must have.
     pub fn capacity(mut self, capacity: usize) -> EasyMmapBuilder<T> {
         self.capacity = capacity;
         self
     }
 
-    /// Batch sets the options that the file must have
+    /// Batch sets the options that the file must have.
     pub fn options(mut self, options: &[MapOption]) -> EasyMmapBuilder<T> {
         self.options = options.to_vec();
         self
     }
 
-    /// Adds an option to the memory region
+    /// Adds an option to the memory region.
     pub fn add_option(mut self, option: MapOption) -> EasyMmapBuilder<T> {
         self.options.push(option);
         self
