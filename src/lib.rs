@@ -5,7 +5,7 @@ use mmap::{MapOption, MemoryMap};
 /// This is the main struct of the library.
 /// It owns a memory map and provides simplified access to this memory region
 /// This memory region can support any type of data, as long as there is no dynamic memory regions within it (e.g. Box)
-pub struct EasyMap<T> {
+pub struct EasyMmap<T> {
     map: MemoryMap,
     capacity: usize,
     _file: Option<fs::File>,
@@ -14,23 +14,23 @@ pub struct EasyMap<T> {
 
 /// An iterator abstraction over the memory region.
 /// It can be used to quickly iterate over the memory region
-pub struct EasyMapIter<'a, T> {
-    map: &'a EasyMap<T>,
+pub struct EasyMmapIter<'a, T> {
+    map: &'a EasyMmap<T>,
     index: usize,
 }
 
 /// The builder class, that provides an easy interface to create the memory map with its respective requirements
-pub struct EasyMapBuilder<T> {
+pub struct EasyMmapBuilder<T> {
     file: Option<fs::File>,
     capacity: usize,
     options: Vec<MapOption>,
     _type: PhantomData<T>,
 }
 
-impl<'a, T> EasyMap<T> {
-    /// Creates a new EasyMap struct with enough capacity to hold AT LEAST `capacity` elements of type `T`.
-    fn new(capacity: usize, options: &[MapOption], file: Option<fs::File>) -> EasyMap<T> {
-        EasyMap {
+impl<'a, T> EasyMmap<T> {
+    /// Creates a new EasyMmap struct with enough capacity to hold AT LEAST `capacity` elements of type `T`.
+    fn new(capacity: usize, options: &[MapOption], file: Option<fs::File>) -> EasyMmap<T> {
+        EasyMmap {
             map: MemoryMap::new(capacity, options).unwrap(),
             capacity,
             _file: file,
@@ -38,7 +38,7 @@ impl<'a, T> EasyMap<T> {
         }
     }
 
-    /// Inserts a value at index `index` in the EasyMap according to the type of `T`.
+    /// Inserts a value at index `index` in the EasyMmap according to the type of `T`.
     fn put(&mut self, index: usize, value: T) {
         if index >= self.len() {
             panic!(
@@ -57,7 +57,7 @@ impl<'a, T> EasyMap<T> {
         }
     }
 
-    /// Gets a value at index `index` in the EasyMap according to the type of `T`.
+    /// Gets a value at index `index` in the EasyMmap according to the type of `T`.
     pub fn get(&self, index: usize) -> T {
         if index >= self.len() {
             panic!(
@@ -70,14 +70,14 @@ impl<'a, T> EasyMap<T> {
         unsafe { self.map.data().cast::<T>().offset(index as isize).read() }
     }
 
-    /// Returns how many elements of type `T` fit in the `EasyMap`.
+    /// Returns how many elements of type `T` fit in the `EasyMmap`.
     pub fn len(&self) -> usize {
         self.capacity / std::mem::size_of::<T>()
     }
 
-    /// Returns an iterator over `EasyMap` looking at the data as the type `T`.
-    pub fn iter(&'a self) -> EasyMapIter<'a, T> {
-        EasyMapIter::<T> {
+    /// Returns an iterator over `EasyMmap` looking at the data as the type `T`.
+    pub fn iter(&'a self) -> EasyMmapIter<'a, T> {
+        EasyMmapIter::<T> {
             map: self,
             index: 0,
         }
@@ -94,7 +94,7 @@ impl<'a, T> EasyMap<T> {
     }
 }
 
-impl<T> Iterator for EasyMapIter<'_, T> {
+impl<T> Iterator for EasyMmapIter<'_, T> {
     type Item = T;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -107,9 +107,9 @@ impl<T> Iterator for EasyMapIter<'_, T> {
     }
 }
 
-impl<T> EasyMapBuilder<T> {
-    pub fn new() -> EasyMapBuilder<T> {
-        EasyMapBuilder {
+impl<T> EasyMmapBuilder<T> {
+    pub fn new() -> EasyMmapBuilder<T> {
+        EasyMmapBuilder {
             file: None,
             capacity: 0,
             options: Vec::new(),
@@ -118,7 +118,7 @@ impl<T> EasyMapBuilder<T> {
     }
 
     /// Builds the memory map with the given requirements
-    pub fn build(mut self) -> EasyMap<T> {
+    pub fn build(mut self) -> EasyMmap<T> {
         if self.file.is_some() {
             let file = self.file.unwrap();
             // allocate enough size in the file
@@ -133,7 +133,7 @@ impl<T> EasyMapBuilder<T> {
             self.file = Some(file);
         }
 
-        EasyMap::new(
+        EasyMmap::new(
             self.capacity * std::mem::size_of::<T>(),
             &self.options,
             self.file,
@@ -141,25 +141,25 @@ impl<T> EasyMapBuilder<T> {
     }
 
     /// Passes the ownership of the file to the memory map
-    pub fn file(mut self, file: fs::File) -> EasyMapBuilder<T> {
+    pub fn file(mut self, file: fs::File) -> EasyMmapBuilder<T> {
         self.file = Some(file);
         self
     }
 
     /// Sets the capacity that the file must have
-    pub fn capacity(mut self, capacity: usize) -> EasyMapBuilder<T> {
+    pub fn capacity(mut self, capacity: usize) -> EasyMmapBuilder<T> {
         self.capacity = capacity;
         self
     }
 
     /// Batch sets the options that the file must have
-    pub fn options(mut self, options: &[MapOption]) -> EasyMapBuilder<T> {
+    pub fn options(mut self, options: &[MapOption]) -> EasyMmapBuilder<T> {
         self.options = options.to_vec();
         self
     }
 
     /// Adds an option to the memory region
-    pub fn add_option(mut self, option: MapOption) -> EasyMapBuilder<T> {
+    pub fn add_option(mut self, option: MapOption) -> EasyMmapBuilder<T> {
         self.options.push(option);
         self
     }
@@ -180,7 +180,7 @@ mod tests {
 
     #[test]
     fn map_create() {
-        let map = &mut EasyMapBuilder::<u32>::new()
+        let map = &mut EasyMmapBuilder::<u32>::new()
             .capacity(10)
             .options(&[])
             .build();
@@ -190,7 +190,7 @@ mod tests {
 
     #[test]
     fn map_write_read() {
-        let map = &mut EasyMapBuilder::<u32>::new()
+        let map = &mut EasyMmapBuilder::<u32>::new()
             .capacity(1)
             .options(&[MapOption::MapReadable, MapOption::MapWritable])
             .build();
@@ -201,7 +201,7 @@ mod tests {
 
     #[test]
     fn map_iter() {
-        let map = &mut EasyMapBuilder::<u32>::new()
+        let map = &mut EasyMmapBuilder::<u32>::new()
             .capacity(5)
             .options(&[MapOption::MapReadable, MapOption::MapWritable])
             .build();
@@ -216,7 +216,7 @@ mod tests {
     #[test]
     #[should_panic]
     fn map_oob_write() {
-        let map = &mut EasyMapBuilder::<u32>::new()
+        let map = &mut EasyMmapBuilder::<u32>::new()
             .capacity(1)
             .options(&[MapOption::MapReadable, MapOption::MapWritable])
             .build();
@@ -227,7 +227,7 @@ mod tests {
     #[test]
     #[should_panic]
     fn map_oob_read() {
-        let map = &mut EasyMapBuilder::<u32>::new()
+        let map = &mut EasyMmapBuilder::<u32>::new()
             .capacity(1)
             .options(&[MapOption::MapReadable, MapOption::MapWritable])
             .build();
@@ -239,7 +239,7 @@ mod tests {
     fn map_create_file() {
         let file = create_random_file();
 
-        let map = &mut EasyMapBuilder::<u32>::new()
+        let map = &mut EasyMmapBuilder::<u32>::new()
             .file(file)
             .capacity(10)
             .options(&[MapOption::MapReadable, MapOption::MapWritable])
@@ -257,7 +257,7 @@ mod tests {
 
     #[test]
     fn test_large_size() {
-        let map = &mut EasyMapBuilder::new()
+        let map = &mut EasyMmapBuilder::new()
             .capacity(65535)
             .options(&[MapOption::MapReadable, MapOption::MapWritable])
             .build();
@@ -284,7 +284,7 @@ mod tests {
 
         let file = create_random_file();
 
-        let map = &mut EasyMapBuilder::new()
+        let map = &mut EasyMmapBuilder::new()
             .capacity(length)
             .options(&[MapOption::MapReadable, MapOption::MapWritable])
             .file(file)
@@ -311,7 +311,7 @@ mod tests {
     fn test_iter_write() {
         let file = create_random_file();
 
-        let map = &mut EasyMapBuilder::new()
+        let map = &mut EasyMmapBuilder::new()
             .capacity(10)
             .options(&[MapOption::MapReadable, MapOption::MapWritable])
             .file(file)
@@ -342,7 +342,7 @@ mod tests {
             .open("/tmp/testmap")
             .unwrap();
 
-        let map = &mut EasyMapBuilder::new()
+        let map = &mut EasyMmapBuilder::new()
             .capacity(10)
             .options(&[MapOption::MapReadable, MapOption::MapWritable])
             .file(file)
@@ -363,7 +363,7 @@ mod tests {
             .open("/tmp/testmap")
             .unwrap();
 
-        let map = &mut EasyMapBuilder::<u32>::new()
+        let map = &mut EasyMmapBuilder::<u32>::new()
             .file(file)
             .capacity(10)
             .options(&[MapOption::MapReadable, MapOption::MapWritable])
