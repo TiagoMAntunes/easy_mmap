@@ -127,6 +127,8 @@ impl<T> EasyMapBuilder<T> {
 
             // Get file descriptor of file
             self.options.push(MapOption::MapFd(file.as_raw_fd()));
+            self.options // To make the code share the file in memory
+                .push(MapOption::MapNonStandardFlags(libc::MAP_SHARED));
 
             self.file = Some(file);
         }
@@ -329,6 +331,47 @@ mod tests {
         assert_eq!(
             map.iter().collect::<Vec<_>>(),
             vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+        );
+    }
+
+    #[test]
+    fn test_write_to_file() {
+        let file = fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open("/tmp/testmap")
+            .unwrap();
+
+        let map = &mut EasyMapBuilder::new()
+            .capacity(10)
+            .options(&[MapOption::MapReadable, MapOption::MapWritable])
+            .file(file)
+            .build();
+
+        map.update_each(|idx, _| idx as u32);
+
+        assert_eq!(
+            map.iter().collect::<Vec<_>>(),
+            vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+        );
+
+        drop(map);
+
+        let file = fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open("/tmp/testmap")
+            .unwrap();
+
+        let map = &mut EasyMapBuilder::<u32>::new()
+            .file(file)
+            .capacity(10)
+            .options(&[MapOption::MapReadable, MapOption::MapWritable])
+            .build();
+
+        assert_eq!(
+            map.iter().collect::<Vec<_>>(),
+            vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
         );
     }
 }
