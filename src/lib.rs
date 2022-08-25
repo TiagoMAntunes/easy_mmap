@@ -265,9 +265,6 @@ mod tests {
 
         assert_eq!(map.len(), 10);
 
-        // Check if file exists
-        assert!(fs::metadata("/tmp/testmap").unwrap().is_file());
-
         // Write to file
         map[0] = 1;
         assert_eq!(map[0], 1);
