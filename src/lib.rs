@@ -6,8 +6,8 @@ use std::{
     slice::{Iter, IterMut},
 };
 
-use mmap::MemoryMap;
 pub use mmap::MapOption;
+use mmap::MemoryMap;
 
 /// The main abstraction over the `mmap` crate.
 /// Owns a memory map and provides simplified and safe access to this memory region.
@@ -176,6 +176,16 @@ impl<'a, T> EasyMmapBuilder<T> {
     /// Adds an individual option.
     pub fn add_option(mut self, option: MapOption) -> EasyMmapBuilder<T> {
         self.options.push(option);
+        self
+    }
+
+    pub fn readable(mut self) -> EasyMmapBuilder<T> {
+        self.options.push(MapOption::MapReadable);
+        self
+    }
+
+    pub fn writable(mut self) -> EasyMmapBuilder<T> {
+        self.options.push(MapOption::MapWritable);
         self
     }
 }
@@ -403,5 +413,17 @@ mod tests {
         slice[0] = 10;
 
         assert_eq!(map[0], 10);
+    }
+
+    #[test]
+    fn easier_builder() {
+        let mut map = EasyMmapBuilder::<i32>::new()
+            .capacity(1)
+            .readable()
+            .writable()
+            .build();
+
+        map[0] = 1;
+        assert_eq!(map[0], 1);
     }
 }
