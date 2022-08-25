@@ -8,9 +8,9 @@ use std::{
 
 use mmap::{MapOption, MemoryMap};
 
-/// This is the main struct of the library.
-/// It owns a memory map and provides simplified access to this memory region.
-/// This memory region can support any type of data, as long as there is no dynamic memory regions within it (e.g. Box).
+/// The main abstraction over the `mmap` crate.
+/// Owns a memory map and provides simplified and safe access to this memory region.
+/// Also provides some additional features such as iterators over the data.
 pub struct EasyMmap<'a, T> {
     _map: MemoryMap,
     _data: &'a mut [T],
@@ -18,7 +18,6 @@ pub struct EasyMmap<'a, T> {
     _file: Option<fs::File>,
 }
 
-/// The builder class, that provides an easy interface to create the memory map with its respective requirements.
 impl<'a, T> EasyMmap<'a, T>
 where
     T: Copy,
@@ -36,29 +35,45 @@ where
         }
     }
 
-    /// Returns how many elements of type `T` fit in the `EasyMmap`.
+    /// How many elements can be stored in the memory map.
     pub fn len(&self) -> usize {
         self.capacity
     }
 
-    /// Returns an iterator over `EasyMmap` looking at the data as the type `T`.
+    /// Returns a read-only iterator over the elements of the memory map.
     pub fn iter(&self) -> Iter<'_, T> {
         self._data.iter()
     }
 
+    /// Returns a mutable iterator over the elements of the memory map.
     pub fn iter_mut(&mut self) -> IterMut<'_, T> {
         self._data.iter_mut()
     }
 
+    /// Returns a read-only slice of the memory map data.
     pub fn get_data_as_slice(&self) -> &[T] {
         self._data
     }
 
+    /// Returns a mutable slice of the memory map data.
     pub fn get_data_as_slice_mut(&mut self) -> &mut [T] {
         self._data
     }
 }
 
+/// The structure can be indexed similarly to an array.
+/// Example:
+/// ```
+/// let mut mmap = easy_mmap::EasyMmapBuilder::new()
+///                     .options(&[
+///                         mmap::MapOption::MapWritable, 
+///                         mmap::MapOption::MapReadable,
+///                     ])
+///                     .capacity(10)
+///                     .build();
+/// mmap[0] = 1;
+/// println!("{}", mmap[0]);
+/// ```
 impl<'a, T> Index<usize> for EasyMmap<'a, T>
 where
     T: Copy,
@@ -77,6 +92,8 @@ where
     }
 }
 
+/// The structure can be indexed an array or slice.
+/// See the `Index` trait for an example.
 impl<'a, T> IndexMut<usize> for EasyMmap<'a, T>
 where
     T: Copy,
@@ -93,6 +110,8 @@ where
     }
 }
 
+/// The builder class for the EasyMmap struct.
+/// Provides an easy-to-use interface to create a new EasyMmap struct.
 pub struct EasyMmapBuilder<T> {
     file: Option<fs::File>,
     capacity: usize,
@@ -101,6 +120,7 @@ pub struct EasyMmapBuilder<T> {
 }
 
 impl<'a, T> EasyMmapBuilder<T> {
+    /// Creates a new EasyMmapBuilder struct.
     pub fn new() -> EasyMmapBuilder<T> {
         EasyMmapBuilder {
             file: None,
@@ -110,7 +130,8 @@ impl<'a, T> EasyMmapBuilder<T> {
         }
     }
 
-    /// Builds the memory map with the given requirements.
+    /// Builds the memory map with the given specifications.
+    /// If the file has been specified, its size will be set to the requirements of the map.
     pub fn build(mut self) -> EasyMmap<'a, T>
     where
         T: Copy,
@@ -133,13 +154,13 @@ impl<'a, T> EasyMmapBuilder<T> {
     }
 
     /// Passes the ownership of the file to the memory map.
-    /// Also sets the file to have enough size.
     pub fn file(mut self, file: fs::File) -> EasyMmapBuilder<T> {
         self.file = Some(file);
         self
     }
 
     /// Sets the capacity that the mapped region must have.
+    /// This capacity must be the number of objects of type `T` that can be stored in the memory map.
     pub fn capacity(mut self, capacity: usize) -> EasyMmapBuilder<T> {
         self.capacity = capacity;
         self
@@ -384,5 +405,15 @@ mod tests {
         slice[0] = 10;
 
         assert_eq!(map[0], 10);
+    }
+
+    #[test]
+    fn testtest() {
+        let mut mmap = EasyMmapBuilder::new()
+            .options(&[MapOption::MapWritable, MapOption::MapReadable])
+            .capacity(10)
+            .build();
+        mmap[0] = 1;
+        println!("{}", mmap[0]);
     }
 }
