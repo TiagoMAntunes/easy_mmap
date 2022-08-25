@@ -42,11 +42,11 @@ where
     }
 
     /// Returns an iterator over `EasyMmap` looking at the data as the type `T`.
-    pub fn iter(&'a self) -> Iter<'_, T> {
+    pub fn iter(&self) -> Iter<'_, T> {
         self._data.iter()
     }
 
-    pub fn iter_mut(&'a mut self) -> IterMut<'_, T> {
+    pub fn iter_mut(&mut self) -> IterMut<'_, T> {
         self._data.iter_mut()
     }
 }
@@ -295,95 +295,59 @@ mod tests {
     }
 
     #[test]
-    fn test_iter_write() {
-        let file = create_random_file();
-
-        let mut map = EasyMmapBuilder::new()
-            .capacity(10)
-            .options(&[MapOption::MapReadable, MapOption::MapWritable])
-            .file(file)
-            .build();
-
-        // map.update_each(|idx, _| idx as u32);
-        map.iter_mut()
-            .enumerate()
-            .for_each(|(idx, v)| *v = idx as u32);
-
-        assert_eq!(
-            map.iter().map(|x| *x).collect::<Vec<_>>(),
-            vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
-        );
-
-        let sum = map.iter().sum::<u32>();
-        assert_eq!(sum, 45);
-
-        // map.update_each(|_, v| v + 1);
-        map.iter_mut().for_each(|v| *v += 1);
-
-        assert_eq!(
-            map.iter().map(|x| *x).collect::<Vec<_>>(),
-            vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
-        );
-    }
-
-    #[test]
-    fn test_write_to_file() {
-        let file = fs::OpenOptions::new()
-            .read(true)
-            .write(true)
-            .open("/tmp/testmap")
-            .unwrap();
-
-        let map = &mut EasyMmapBuilder::new()
-            .capacity(10)
-            .options(&[MapOption::MapReadable, MapOption::MapWritable])
-            .file(file)
-            .build();
-
-        // map.update_each(|idx, _| idx as u32);
-        map.iter_mut()
-            .enumerate()
-            .for_each(|(idx, v)| *v = idx as u32);
-
-        assert_eq!(
-            map.iter().map(|x| *x).collect::<Vec<_>>(),
-            vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
-        );
-
-        drop(map);
-
-        let file = fs::OpenOptions::new()
-            .read(true)
-            .write(true)
-            .open("/tmp/testmap")
-            .unwrap();
-
-        let map = &mut EasyMmapBuilder::<u32>::new()
-            .file(file)
-            .capacity(10)
-            .options(&[MapOption::MapReadable, MapOption::MapWritable])
-            .build();
-
-        assert_eq!(
-            map.iter().map(|x| *x).collect::<Vec<_>>(),
-            vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
-        );
-    }
-
-    #[test]
-    fn test_fn1() {
-        let mut mymap = EasyMmapBuilder::<u32>::new()
+    fn test_iter() {
+        let mut map = EasyMmapBuilder::<i32>::new()
             .capacity(5)
-            .options(&[MapOption::MapWritable, MapOption::MapReadable])
+            .options(&[MapOption::MapReadable, MapOption::MapWritable])
             .build();
 
-        for el in mymap.iter_mut() {
-            *el = 1;
+        for i in 0..5 {
+            map[i] = i as i32;
         }
 
+        for (i, x) in map.iter().enumerate() {
+            assert_eq!(i as i32, *x);
+        }
+    }
+
+    #[test]
+    fn test_iter_mut() {
+        let mut map = EasyMmapBuilder::<i32>::new()
+            .capacity(5)
+            .options(&[MapOption::MapReadable, MapOption::MapWritable])
+            .build();
+
+        for (i, x) in map.iter_mut().enumerate() {
+            *x = i as i32;
+        }
+
+        for (i, x) in map.iter().enumerate() {
+            assert_eq!(i as i32, *x);
+        }
+    }
+
+    #[test]
+    fn test_complex_iterator() {
+        let mut map = EasyMmapBuilder::<u32>::new()
+            .capacity(5)
+            .options(&[MapOption::MapReadable, MapOption::MapWritable])
+            .build();
+
+        map.iter_mut()
+            .enumerate()
+            .for_each(|(idx, x)| *x = idx as u32);
+
+        let v = map
+            .iter()
+            .map(|x| *x * 3)
+            .filter(|x| x % 2 == 0)
+            .collect::<Vec<u32>>();
+
+        map.iter_mut().zip(v).for_each(|(x, y)| *x = y);
+
         assert_eq!(
-            mymap.iter().map(|x| *x).collect::<Vec<_>>(),
-            vec![1, 1, 1, 1, 1]
-        )
+            map.iter().map(|x| *x).collect::<Vec<_>>(),
+            vec![0, 6, 12, 3, 4]
+        );
     }
 }
