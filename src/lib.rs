@@ -49,6 +49,14 @@ where
     pub fn iter_mut(&mut self) -> IterMut<'_, T> {
         self._data.iter_mut()
     }
+
+    pub fn get_data_as_slice(&self) -> &[T] {
+        self._data
+    }
+
+    pub fn get_data_as_slice_mut(&mut self) -> &mut [T] {
+        self._data
+    }
 }
 
 impl<'a, T> Index<usize> for EasyMmap<'a, T>
@@ -349,5 +357,32 @@ mod tests {
             map.iter().map(|x| *x).collect::<Vec<_>>(),
             vec![0, 6, 12, 3, 4]
         );
+    }
+
+    #[test]
+    fn get_data_slice() {
+        let mut map = EasyMmapBuilder::<u32>::new()
+            .capacity(5)
+            .options(&[MapOption::MapReadable, MapOption::MapWritable])
+            .build();
+
+        map.iter_mut()
+            .enumerate()
+            .for_each(|(idx, x)| *x = idx as u32);
+
+        let slice = map.get_data_as_slice();
+
+        assert_eq!(slice.len(), 5);
+        assert_eq!(slice[0], map[0]);
+        assert_eq!(slice[1], map[1]);
+        assert_eq!(slice[2], map[2]);
+        assert_eq!(slice[3], map[3]);
+        assert_eq!(slice[4], map[4]);
+
+        let slice = map.get_data_as_slice_mut();
+        assert_eq!(slice.len(), 5);
+        slice[0] = 10;
+
+        assert_eq!(map[0], 10);
     }
 }
