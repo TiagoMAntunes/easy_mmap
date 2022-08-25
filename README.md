@@ -18,10 +18,12 @@ fn main() {
         .options(&[MapOption::MapReadable, MapOption::MapWritable])
         .build();
 
-    map.update_each(|i, _| i as u32);
+    map.iter_mut()
+        .enumerate()
+        .for_each(|(idx, x)| *x = idx as u32);
 
     map.iter().for_each(|v| {
-        println!("{}", v);
+        print!("{} ", v);
     });
 }
 ```

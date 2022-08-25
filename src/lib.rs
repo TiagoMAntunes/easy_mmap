@@ -66,7 +66,7 @@ where
 /// ```
 /// let mut mmap = easy_mmap::EasyMmapBuilder::new()
 ///                     .options(&[
-///                         mmap::MapOption::MapWritable, 
+///                         mmap::MapOption::MapWritable,
 ///                         mmap::MapOption::MapReadable,
 ///                     ])
 ///                     .capacity(10)
@@ -402,15 +402,5 @@ mod tests {
         slice[0] = 10;
 
         assert_eq!(map[0], 10);
-    }
-
-    #[test]
-    fn testtest() {
-        let mut mmap = EasyMmapBuilder::new()
-            .options(&[MapOption::MapWritable, MapOption::MapReadable])
-            .capacity(10)
-            .build();
-        mmap[0] = 1;
-        println!("{}", mmap[0]);
     }
 }
