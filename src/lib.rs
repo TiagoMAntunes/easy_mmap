@@ -1,25 +1,90 @@
-use std::{fs, marker::PhantomData, os::unix::prelude::AsRawFd};
+use std::{
+    fs,
+    marker::PhantomData,
+    ops::{Index, IndexMut},
+    os::unix::prelude::AsRawFd,
+    slice::{Iter, IterMut},
+};
 
 use mmap::{MapOption, MemoryMap};
 
 /// This is the main struct of the library.
 /// It owns a memory map and provides simplified access to this memory region.
 /// This memory region can support any type of data, as long as there is no dynamic memory regions within it (e.g. Box).
-pub struct EasyMmap<T> {
-    map: MemoryMap,
+pub struct EasyMmap<'a, T> {
+    _map: MemoryMap,
+    _data: &'a mut [T],
     capacity: usize,
     _file: Option<fs::File>,
-    _phantom: PhantomData<T>,
-}
-
-/// An iterator abstraction over the memory region.
-/// It can be used to quickly iterate over the memory region.
-pub struct EasyMmapIter<'a, T> {
-    map: &'a EasyMmap<T>,
-    index: usize,
 }
 
 /// The builder class, that provides an easy interface to create the memory map with its respective requirements.
+impl<'a, T> EasyMmap<'a, T>
+where
+    T: Copy,
+{
+    /// Creates a new EasyMmap struct with enough capacity to hold AT LEAST `capacity` elements of type `T`.
+    fn new(capacity: usize, options: &[MapOption], file: Option<fs::File>) -> EasyMmap<'a, T> {
+        let map = MemoryMap::new(capacity * std::mem::size_of::<T>(), options).unwrap();
+        let slice = unsafe { std::slice::from_raw_parts_mut(map.data().cast::<T>(), capacity) };
+
+        EasyMmap {
+            _map: map,
+            _data: slice,
+            capacity,
+            _file: file,
+        }
+    }
+
+    /// Returns how many elements of type `T` fit in the `EasyMmap`.
+    pub fn len(&self) -> usize {
+        self.capacity
+    }
+
+    /// Returns an iterator over `EasyMmap` looking at the data as the type `T`.
+    pub fn iter(&'a self) -> Iter<'_, T> {
+        self._data.iter()
+    }
+
+    pub fn iter_mut(&'a mut self) -> IterMut<'_, T> {
+        self._data.iter_mut()
+    }
+}
+
+impl<'a, T> Index<usize> for EasyMmap<'a, T>
+where
+    T: Copy,
+{
+    type Output = T;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        if index >= self.len() {
+            panic!(
+                "Index {} is out of bounds for type {}",
+                index,
+                std::any::type_name::<T>(),
+            );
+        };
+        &self._data[index]
+    }
+}
+
+impl<'a, T> IndexMut<usize> for EasyMmap<'a, T>
+where
+    T: Copy,
+{
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        if index >= self.len() {
+            panic!(
+                "Index {} is out of bounds for type {}",
+                index,
+                std::any::type_name::<T>(),
+            )
+        }
+        &mut self._data[index]
+    }
+}
+
 pub struct EasyMmapBuilder<T> {
     file: Option<fs::File>,
     capacity: usize,
@@ -27,86 +92,7 @@ pub struct EasyMmapBuilder<T> {
     _type: PhantomData<T>,
 }
 
-impl<'a, T> EasyMmap<T> {
-    /// Creates a new EasyMmap struct with enough capacity to hold AT LEAST `capacity` elements of type `T`.
-    fn new(capacity: usize, options: &[MapOption], file: Option<fs::File>) -> EasyMmap<T> {
-        EasyMmap {
-            map: MemoryMap::new(capacity, options).unwrap(),
-            capacity,
-            _file: file,
-            _phantom: PhantomData,
-        }
-    }
-
-    /// Inserts a value at index `index` in the EasyMmap according to the type of `T`.
-    pub fn put(&mut self, index: usize, value: T) {
-        if index >= self.len() {
-            panic!(
-                "Index {} is out of bounds for type {}",
-                index,
-                std::any::type_name::<T>(),
-            );
-        }
-
-        unsafe {
-            self.map
-                .data()
-                .cast::<T>()
-                .offset(index as isize)
-                .write(value);
-        }
-    }
-
-    /// Gets a value at index `index` in the EasyMmap according to the type of `T`.
-    pub fn get(&self, index: usize) -> T {
-        if index >= self.len() {
-            panic!(
-                "Index {} is out of bounds for type {}",
-                index,
-                std::any::type_name::<T>(),
-            );
-        }
-
-        unsafe { self.map.data().cast::<T>().offset(index as isize).read() }
-    }
-
-    /// Returns how many elements of type `T` fit in the `EasyMmap`.
-    pub fn len(&self) -> usize {
-        self.capacity / std::mem::size_of::<T>()
-    }
-
-    /// Returns an iterator over `EasyMmap` looking at the data as the type `T`.
-    pub fn iter(&'a self) -> EasyMmapIter<'a, T> {
-        EasyMmapIter::<T> {
-            map: self,
-            index: 0,
-        }
-    }
-
-    /// Due to the nature of a Mmap, memory cannot be consumed and will keep existing.
-    /// Typical workloads will also avoid creating new memory mapped regions, preferring in-place updates.
-    /// We can then level an iterator over the memory region to simplify this process.
-    pub fn update_each(&mut self, f: impl Fn(usize, T) -> T) {
-        for i in 0..self.len() {
-            self.put(i, f(i, self.get(i)));
-        }
-    }
-}
-
-impl<T> Iterator for EasyMmapIter<'_, T> {
-    type Item = T;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.index < self.map.len() {
-            self.index += 1;
-            Some(self.map.get(self.index - 1))
-        } else {
-            None
-        }
-    }
-}
-
-impl<T> EasyMmapBuilder<T> {
+impl<'a, T> EasyMmapBuilder<T> {
     pub fn new() -> EasyMmapBuilder<T> {
         EasyMmapBuilder {
             file: None,
@@ -117,7 +103,10 @@ impl<T> EasyMmapBuilder<T> {
     }
 
     /// Builds the memory map with the given requirements.
-    pub fn build(mut self) -> EasyMmap<T> {
+    pub fn build(mut self) -> EasyMmap<'a, T>
+    where
+        T: Copy,
+    {
         if self.file.is_some() {
             let file = self.file.unwrap();
             // allocate enough size in the file
@@ -132,11 +121,7 @@ impl<T> EasyMmapBuilder<T> {
             self.file = Some(file);
         }
 
-        EasyMmap::new(
-            self.capacity * std::mem::size_of::<T>(),
-            &self.options,
-            self.file,
-        )
+        EasyMmap::new(self.capacity, &self.options, self.file)
     }
 
     /// Passes the ownership of the file to the memory map.
@@ -194,9 +179,10 @@ mod tests {
             .capacity(1)
             .options(&[MapOption::MapReadable, MapOption::MapWritable])
             .build();
-        map.put(0, 1);
 
-        assert_eq!(map.get(0), 1);
+        map[0] = 1;
+
+        assert_eq!(map[0], 1);
     }
 
     #[test]
@@ -207,10 +193,13 @@ mod tests {
             .build();
 
         for i in 0..5 {
-            map.put(i, i as u32);
+            map[i] = i as u32;
         }
 
-        assert_eq!(map.iter().collect::<Vec<_>>(), vec![0, 1, 2, 3, 4]);
+        assert_eq!(
+            map.iter().map(|x| *x).collect::<Vec<_>>(),
+            vec![0, 1, 2, 3, 4]
+        );
     }
 
     #[test]
@@ -221,7 +210,7 @@ mod tests {
             .options(&[MapOption::MapReadable, MapOption::MapWritable])
             .build();
 
-        map.put(1, 1);
+        map[1] = 1;
     }
 
     #[test]
@@ -232,7 +221,7 @@ mod tests {
             .options(&[MapOption::MapReadable, MapOption::MapWritable])
             .build();
 
-        map.get(1);
+        map[1];
     }
 
     #[test]
@@ -251,8 +240,8 @@ mod tests {
         assert!(fs::metadata("/tmp/testmap").unwrap().is_file());
 
         // Write to file
-        map.put(0, 1);
-        assert_eq!(map.get(0), 1);
+        map[0] = 1;
+        assert_eq!(map[0], 1);
     }
 
     #[test]
@@ -264,17 +253,18 @@ mod tests {
 
         // Populate map
         for i in 0..65535 {
-            map.put(i, i as u64);
+            map[i] = i as u64;
         }
 
         // Check if map is populated
         for i in 0..65535 {
-            assert_eq!(map.get(i), i as u64);
+            assert_eq!(map[i], i as u64);
         }
     }
 
     #[test]
     fn test_struct() {
+        #[derive(Clone, Copy)]
         struct TestStruct {
             v1: i64,
             v2: bool,
@@ -291,17 +281,14 @@ mod tests {
             .build();
 
         for i in 0..length {
-            map.put(
-                i,
-                TestStruct {
-                    v1: i as i64,
-                    v2: i % 2 == 0,
-                },
-            );
+            map[i] = TestStruct {
+                v1: i as i64,
+                v2: i % 2 == 0,
+            };
         }
 
         for i in 0..length {
-            let s = map.get(i);
+            let s = map[i];
             assert_eq!(s.v1, i as i64);
             assert_eq!(s.v2, i % 2 == 0);
         }
@@ -311,25 +298,30 @@ mod tests {
     fn test_iter_write() {
         let file = create_random_file();
 
-        let map = &mut EasyMmapBuilder::new()
+        let mut map = EasyMmapBuilder::new()
             .capacity(10)
             .options(&[MapOption::MapReadable, MapOption::MapWritable])
             .file(file)
             .build();
 
-        map.update_each(|idx, _| idx as u32);
+        // map.update_each(|idx, _| idx as u32);
+        map.iter_mut()
+            .enumerate()
+            .for_each(|(idx, v)| *v = idx as u32);
 
         assert_eq!(
-            map.iter().collect::<Vec<_>>(),
+            map.iter().map(|x| *x).collect::<Vec<_>>(),
             vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
         );
 
         let sum = map.iter().sum::<u32>();
         assert_eq!(sum, 45);
 
-        map.update_each(|_, v| v + 1);
+        // map.update_each(|_, v| v + 1);
+        map.iter_mut().for_each(|v| *v += 1);
+
         assert_eq!(
-            map.iter().collect::<Vec<_>>(),
+            map.iter().map(|x| *x).collect::<Vec<_>>(),
             vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
         );
     }
@@ -348,10 +340,13 @@ mod tests {
             .file(file)
             .build();
 
-        map.update_each(|idx, _| idx as u32);
+        // map.update_each(|idx, _| idx as u32);
+        map.iter_mut()
+            .enumerate()
+            .for_each(|(idx, v)| *v = idx as u32);
 
         assert_eq!(
-            map.iter().collect::<Vec<_>>(),
+            map.iter().map(|x| *x).collect::<Vec<_>>(),
             vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
         );
 
@@ -370,8 +365,25 @@ mod tests {
             .build();
 
         assert_eq!(
-            map.iter().collect::<Vec<_>>(),
+            map.iter().map(|x| *x).collect::<Vec<_>>(),
             vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
         );
+    }
+
+    #[test]
+    fn test_fn1() {
+        let mut mymap = EasyMmapBuilder::<u32>::new()
+            .capacity(5)
+            .options(&[MapOption::MapWritable, MapOption::MapReadable])
+            .build();
+
+        for el in mymap.iter_mut() {
+            *el = 1;
+        }
+
+        assert_eq!(
+            mymap.iter().map(|x| *x).collect::<Vec<_>>(),
+            vec![1, 1, 1, 1, 1]
+        )
     }
 }
