@@ -6,7 +6,8 @@ use std::{
     slice::{Iter, IterMut},
 };
 
-use mmap::{MapOption, MemoryMap};
+use mmap::MemoryMap;
+pub use mmap::MapOption;
 
 /// The main abstraction over the `mmap` crate.
 /// Owns a memory map and provides simplified and safe access to this memory region.
