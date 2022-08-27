@@ -468,4 +468,31 @@ mod tests {
         map.fill(|i| i as i32);
         assert_eq!(map.get_data_as_slice(), (0..100000).collect::<Vec<_>>());
     }
+
+    #[test]
+    fn open_written_file() {
+        let values = vec![1, 2, 3, 4, 5, 10, 20, 50];
+
+        // Write to random file
+        let filename = format!("/tmp/file{}", rand::random::<i32>());
+        fs::write(&filename, &values).expect("Failed to write values to file");
+        println!("Wrote to file: {}", &filename);
+
+        let file = fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(false)
+            .open(&filename)
+            .expect("Failed to open file");
+
+        // Now read the contents into the mmap
+        let map = EasyMmapBuilder::<u8>::new()
+            .capacity(values.len())
+            .writable()
+            .readable()
+            .file(file)
+            .build();
+
+        assert_eq!(map.get_data_as_slice(), values);
+    }
 }
