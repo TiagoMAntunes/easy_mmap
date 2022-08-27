@@ -23,7 +23,7 @@ impl<'a, T> EasyMmap<'a, T>
 where
     T: Copy,
 {
-    /// Creates a new EasyMmap struct with enough capacity to hold AT LEAST `capacity` elements of type `T`.
+    /// Creates a new EasyMmap struct with enough capacity to hold `capacity` elements of type `T`.
     fn new(capacity: usize, options: &[MapOption], file: Option<fs::File>) -> EasyMmap<'a, T> {
         let map = MemoryMap::new(capacity * std::mem::size_of::<T>(), options).unwrap();
         let slice = unsafe { std::slice::from_raw_parts_mut(map.data().cast::<T>(), capacity) };
@@ -59,6 +59,24 @@ where
     /// Returns a mutable slice of the memory map data.
     pub fn get_data_as_slice_mut(&mut self) -> &mut [T] {
         self._data
+    }
+
+    /// Convenience method for filling the memory map with a custom function
+    /// Example:
+    /// ```
+    /// let mut mmap = easy_mmap::EasyMmapBuilder::new()
+    ///                            .readable()
+    ///                            .writable()
+    ///                            .capacity(5)
+    ///                            .build();
+    ///
+    /// mmap.fill(|i| i as u32);
+    /// assert_eq!(mmap.get_data_as_slice(), &[0, 1, 2, 3, 4]);
+    /// ```
+    pub fn fill(&mut self, f: impl Fn(usize) -> T) {
+        for (i, v) in self._data.iter_mut().enumerate() {
+            *v = f(i);
+        }
     }
 }
 
@@ -425,5 +443,29 @@ mod tests {
 
         map[0] = 1;
         assert_eq!(map[0], 1);
+    }
+
+    #[test]
+    fn fill_constant() {
+        let mut map = EasyMmapBuilder::<i32>::new()
+            .capacity(5)
+            .readable()
+            .writable()
+            .build();
+
+        map.fill(|_| 1);
+        assert_eq!(map.get_data_as_slice(), vec![1, 1, 1, 1, 1]);
+    }
+
+    #[test]
+    fn fill_large() {
+        let mut map = EasyMmapBuilder::<i32>::new()
+            .capacity(100000)
+            .readable()
+            .writable()
+            .build();
+
+        map.fill(|i| i as i32);
+        assert_eq!(map.get_data_as_slice(), (0..100000).collect::<Vec<_>>());
     }
 }
