@@ -8,7 +8,7 @@ license = "MIT"
 name = "easy_mmap"
 readme = "README.md"
 repository = "https://github.com/TiagoMAntunes/easy_mmap"
-version = "0.2.3"
+version = "0.3.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -16,3 +16,4 @@ version = "0.2.3"
 libc = "0.2"
 mmap = "0.1.1"
 rand = "0.8"
+rayon = "1.5"

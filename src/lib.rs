@@ -8,6 +8,7 @@ use std::{
 
 pub use mmap::MapOption;
 use mmap::MemoryMap;
+use rayon::prelude::*;
 
 /// The main abstraction over the `mmap` crate.
 /// Owns a memory map and provides simplified and safe access to this memory region.
@@ -21,7 +22,7 @@ pub struct EasyMmap<'a, T> {
 
 impl<'a, T> EasyMmap<'a, T>
 where
-    T: Copy,
+    T: Copy + Send + Sync,
 {
     /// Creates a new EasyMmap struct with enough capacity to hold `capacity` elements of type `T`.
     fn new(capacity: usize, options: &[MapOption], file: Option<fs::File>) -> EasyMmap<'a, T> {
@@ -49,6 +50,16 @@ where
     /// Returns a mutable iterator over the elements of the memory map.
     pub fn iter_mut(&mut self) -> IterMut<'_, T> {
         self._data.iter_mut()
+    }
+
+    /// Returns a parallel iterator over the elements of the memory map.
+    pub fn par_iter(&self) -> impl ParallelIterator<Item = &T> {
+        self._data.par_iter()
+    }
+
+    /// Returns a mutable parallel iterator over the elements of the memory map.
+    pub fn par_iter_mut(&mut self) -> impl ParallelIterator<Item = &mut T> {
+        self._data.par_iter_mut()
     }
 
     /// Returns a read-only slice of the memory map data.
@@ -95,7 +106,7 @@ where
 /// ```
 impl<'a, T> Index<usize> for EasyMmap<'a, T>
 where
-    T: Copy,
+    T: Copy + Send + Sync,
 {
     type Output = T;
 
@@ -115,7 +126,7 @@ where
 /// See the `Index` trait for an example.
 impl<'a, T> IndexMut<usize> for EasyMmap<'a, T>
 where
-    T: Copy,
+    T: Copy + Send + Sync,
 {
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         if index >= self.len() {
@@ -153,7 +164,7 @@ impl<'a, T> EasyMmapBuilder<T> {
     /// If the file has been specified, its size will be set to the requirements of the map.
     pub fn build(mut self) -> EasyMmap<'a, T>
     where
-        T: Copy,
+        T: Copy + Send + Sync,
     {
         if self.file.is_some() {
             let file = self.file.unwrap();
@@ -476,7 +487,6 @@ mod tests {
         // Write to random file
         let filename = format!("/tmp/file{}", rand::random::<i32>());
         fs::write(&filename, &values).expect("Failed to write values to file");
-        println!("Wrote to file: {}", &filename);
 
         let file = fs::OpenOptions::new()
             .read(true)
@@ -494,5 +504,37 @@ mod tests {
             .build();
 
         assert_eq!(map.get_data_as_slice(), values);
+    }
+
+    #[test]
+    fn parallel_iterators() {
+        let mut map = EasyMmapBuilder::<i32>::new()
+            .capacity(5)
+            .options(&[MapOption::MapReadable, MapOption::MapWritable])
+            .build();
+
+        map.fill(|i| i as i32);
+
+        assert_eq!(
+            map.par_iter().map(|x| *x).collect::<Vec<_>>(),
+            (0..5).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn parallel_iterators_mut() {
+        let mut map = EasyMmapBuilder::<i32>::new()
+            .capacity(5)
+            .options(&[MapOption::MapReadable, MapOption::MapWritable])
+            .build();
+
+        map.fill(|i| i as i32);
+
+        map.par_iter_mut().for_each(|x| *x += 1);
+
+        assert_eq!(
+            map.par_iter().map(|x| *x).collect::<Vec<_>>(),
+            (1..6).collect::<Vec<_>>()
+        );
     }
 }
