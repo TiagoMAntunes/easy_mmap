@@ -22,7 +22,7 @@ pub struct EasyMmap<'a, T> {
 
 impl<'a, T> EasyMmap<'a, T>
 where
-    T: Copy + Send + Sync,
+    T: Copy,
 {
     /// Creates a new EasyMmap struct with enough capacity to hold `capacity` elements of type `T`.
     fn new(capacity: usize, options: &[MapOption], file: Option<fs::File>) -> EasyMmap<'a, T> {
@@ -53,12 +53,12 @@ where
     }
 
     /// Returns a parallel iterator over the elements of the memory map.
-    pub fn par_iter(&self) -> impl ParallelIterator<Item = &T> {
+    pub fn par_iter(&self) -> impl ParallelIterator<Item = &T> where T: Send + Sync {
         self._data.par_iter()
     }
 
     /// Returns a mutable parallel iterator over the elements of the memory map.
-    pub fn par_iter_mut(&mut self) -> impl ParallelIterator<Item = &mut T> {
+    pub fn par_iter_mut(&mut self) -> impl ParallelIterator<Item = &mut T> where T : Send + Sync{
         self._data.par_iter_mut()
     }
 
@@ -106,7 +106,7 @@ where
 /// ```
 impl<'a, T> Index<usize> for EasyMmap<'a, T>
 where
-    T: Copy + Send + Sync,
+    T: Copy,
 {
     type Output = T;
 
@@ -126,7 +126,7 @@ where
 /// See the `Index` trait for an example.
 impl<'a, T> IndexMut<usize> for EasyMmap<'a, T>
 where
-    T: Copy + Send + Sync,
+    T: Copy,
 {
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         if index >= self.len() {
@@ -164,7 +164,7 @@ impl<'a, T> EasyMmapBuilder<T> {
     /// If the file has been specified, its size will be set to the requirements of the map.
     pub fn build(mut self) -> EasyMmap<'a, T>
     where
-        T: Copy + Send + Sync,
+        T: Copy,
     {
         if self.file.is_some() {
             let file = self.file.unwrap();
